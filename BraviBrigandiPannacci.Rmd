@@ -1,0 +1,990 @@
+---
+title: "Homework 03"
+author: "Susanna Bravi, Camilla Brigandì, Lorenzo Pannacci"
+date: "2024-02-10"
+output: 
+  html_document:
+    df_print: kable
+    code_folding: hide
+    theme: 
+      color-contrast-warnings: false
+      bg: "#F9EBE0"
+      fg: "#01295F"
+      primary: "#01295F"
+      secondary: "#01295F"
+      base_font: 
+        google: Hedvig Letters Serif
+      heading_font:
+        google: Bree Serif
+    #toc: yes
+    #toc_float:
+      #collapsed: false
+editor_options: 
+  markdown: 
+    wrap: 72 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries,warning=FALSE, results='hide', message=FALSE}
+library("tseries")
+library("ggplot2")
+library("gridExtra")
+library("corrplot")
+library("igraph")
+library("network")
+library("knitr")
+library("viridis") 
+library("GGally")
+```
+
+# Introductory Exercise - Easy game with 3 players
+
+In this starting exercise, we have to complete the definition of the
+characteristic function $\nu$ of a given game and find the Shapley value
+$\psi^G$ of each player in the game. In particular, we have three
+different players $\mathcal{P} = \textit{\{A, B, C\}}$ and their working
+hours. The goal of the "game" is to optimize their working schedule
+in order to avoid overlapping hours, since the characteristic function
+of this game is defined as
+$ν(\mathsf{C}) = \textit{\{# of hours potentially saved by well organized coalition\}}$
+for a given coalition $\mathsf{C} \subseteq \mathcal{P}$.
+
+The hours in which the players are available to work are the following:
+
+| **Player** | **Working hours** |
+|------------|-------------------|
+| **A**      | 14:00 - 17:00     |
+| **B**      | 11:00 - 16:00     |
+| **C**      | 9:00 - 13:00      |
+
+The text explicitly says, but it is clear from the definition, that
+$\nu(A) = \nu(B) = \nu(C) = 0$ and $\nu(ABC) = 4$.
+
+Our job starts here. First of all, we notice that since
+$\mathcal{P} = \{A, B, C\}$ all the possible coalitions are
+
+$$2^\mathcal{P} = \{ \{A\}, \, \{B\}, \, \{C\}, \,  \{A, B\}, \, \{A, C\}, \, \{B, C\}, \, \{A, B, C\} \}$$
+
+so we only have to define $\nu$ for the subsets of $\mathcal{P}$ of two
+elements, those being $\{A, B\},\{A, C\}, \{B, C\}$. From the definition
+of the characteristic function $\nu$ given above, we have that:
+
+-   $\nu(AB) = 2$, since their *possible* working hours overlap from
+    14:00 to 16:00.
+-   $\nu(BC) = 2$, since their *possible* working hours overlap from
+    11:00 to 13:00.
+-   $\nu(AC) = 0$, since there are no *possible* working hours
+    overlapping.
+
+So, to summarize the characteristic function, we have:
+
+$$
+\nu(S) = 
+\begin{cases}
+  4 & \text{if } S = \{A, B, C\} \\
+  2 & \text{if } S \in \{\{A, B\}, \{B, C\}\} \\
+  0 & \text{if } S \in \{\{A\}, \{B\}, \{C\}, \{A, C\}\}
+\end{cases}
+$$
+
+We can also observe that:
+
+$$
+\nu(\mathsf{C}_1) \le \nu(\mathsf{C}_2) \; \forall \;
+\mathsf{C}_1 \subseteq \mathsf{C}_2
+$$
+
+the game is therefore *monotone* and could easily be re-scaled to make
+it become a *simple game* by just dividing the obtained Shapley values by
+$\nu(\mathcal{P})$. This new game $G'$ is analogous to original one but gives
+to the Shapley values of each player a more immediate meaning of "power"
+of the player.
+
+Now we need to compute the Shapley values for the game $G = (\mathcal{P}, \nu)$.
+Recalling the definition of Shapley we have:
+
+```{=tex}
+\begin{equation*}
+\psi^G(j) = \sum_{\mathsf{C}: j \notin \mathsf{C}} \frac{(\# \mathsf{C}) !(p-1-\# \mathsf{C}) !}{p !}(\nu(\mathsf{C} \cup\{j\})-\nu(\mathsf{C}))
+\end{equation*}
+```
+
+where $\mathsf{C}$ is a coalition of the players $\mathcal{P}$ and
+$p = \#\mathcal{P}$. Applying the definition over the three players of
+the game we obtain their Shapley values:
+
+```{=tex}
+\begin{align*}
+\psi^G(A) &= \sum_{\mathrm{S}: A \notin \mathrm{S}} \frac{(\# \mathrm{S}) !(p-1-\# \mathrm{S}) !}{p !}(\nu(\mathrm{S} \cup\{A\})-\nu(\mathrm{S})) = \\
+&=(\nu(ABC) - \nu(BC) ) \frac{2!}{3!} (3-1-2)! + ( (\nu(AB) - \nu(B)) + (\nu(AC) - \nu(C)) )  \frac{1! 1!}{3!} = \\
+&= (4-2) \, \frac{2}{6} + 2 \, \frac{1}{6} \\
+&= 1 \\
+
+\psi^G(B) &= \sum_{\mathrm{S}: B \notin \mathrm{S}} \frac{(\# \mathrm{S}) !(p-1-\# \mathrm{S}) !}{p !}(\nu(\mathrm{S} \cup\{B\})-\nu(\mathrm{S})) = \\
+&=(\nu(ABC) - \nu(AC) ) \frac{2}{6} + ( (\nu(AB) - \nu(A)) + (\nu(BC) - \nu(C)) )  \frac{1}{6} = \\
+&= 4 \,  \frac{2}{6} + 4 \,  \frac{1}{6} \\
+&= 2 \\
+
+\psi^G(C) &= \sum_{\mathrm{S}: C \notin \mathrm{S}} \frac{(\# \mathrm{S}) !(p-1-\# \mathrm{S}) !}{p !}(\nu(\mathrm{S} \cup\{C\})-\nu(\mathrm{S})) = \\
+&=(\nu(ABC) - \nu(AB) ) \frac{2}{6} + ( (\nu(AC) - \nu(A)) + (\nu(BC) - \nu(B)) )  \frac{1}{6} = \\
+&= 2 \, \frac{2}{6} + 2 \, \frac{1}{6}  \\
+&= 1 \\
+\end{align*}
+```
+
+Summarizing:
+
+$$
+\psi^G(j)= 
+\begin{cases}
+  1 & \text{if } j \in \{A, C\} \\
+  2 & \text{if } j=B \\
+\end{cases}
+$$
+
+And if we re-scale the payoff values to transform the game into a
+*simple* one:
+
+$$
+\psi^{G'}(j)= 
+\begin{cases}
+  \frac{1}{4} & \text{if } j \in \{A, C\} \\
+  \frac{1}{2} & \text{if } j=B \\
+\end{cases}
+$$
+
+Those results tell us that the power of the player $B$ is the double of those of players $A$ and $C$. This is because player $B$ intersects both $A$ and $C$ for two hours each while they intersect only with $B$; if we intuitively give equal "merit" to each player that causes an intersection we end up with two hours of merit for $B$ and one hour each for $A$ and $C$, that is the Shapley values of the original game $G$.
+
+
+
+# Exercise 2 - Statistical
+
+## Chosen Portfolio
+
+The second exercise require us to create a portfolio of $p$ stocks to be
+considered in the time span that goes from the start of 2020 to the end of
+2023, a time period defined by several great global events, first of all the
+Covid pandemic. The number of stocks $p$ that was chosen is 44
+and they were taken across all the *11 Global Industry Classification
+Standard* (GICS) sectors. <br> It is expected that stocks from the same
+sector are more correlated with each other, and in the homework we will test whether this assumption is true or not.
+
+We list below all the considered stocks divided by sector:<br>
+
+| **GICS Sector**            | **Stocks**                       |                                        |                               |                     |                   |                         |                         |
+|---------|---------|---------|---------|---------|---------|---------|---------|
+| **Consumer Discretionary** | Ford Motor Company (F)           | General Motors (GM)                    | Tesla (TSLA)                  | Amazon (AMZN)       | Ebay (EBAY)       | Expedia Group (EXPE)    | Booking Holdings (BKNG) |
+| **Consumer Staples** | Philip Morris International (PM)       | Altria (MO)                            | Colgate - Palmolive (CL)      | Kraft Heinz (KHC)   |                   |                         |                         |
+| **Communiction Sevices**   | Meta Platforms (META)            | Netflix (NFLX)                         | Warner Bros Discoveries (WBD) | Paramount (PARA)    | Walt Disney (DIS) |                         |                         |
+| **Energy**                 | Hess Corporation (HES)           | Coterra (CTRA)                         | ExxonMobil (XOM)              |                     |                   |                         |                         |
+| **Financials**             | Nasdaq, Inc. (NDAQ)              | Assurant (AIZ)                         | Mastercard (MA)               |   Paypal (PYPL)     |  VISA (V)         |                         |                         |
+| **Health Care**            | Pfizer (PFE)                     | Johnson & Johnson (JNJ)                | Moderna (MRNA)                |                     |                   |                         |                         |
+| **Industrials**            | Delta Air Lines (DAL)            | Uber (UBER)                            | Boeing (BA)                   | FedEx (FDX)         |                   |                         |                         |
+| **IT**                     | HP (HPQ)                         | Nvidia (NVDA)                          | Intel (INTC)                  | AMD (AMD)           |                   |                         |                         |
+| **Materials**              | Nucor (NUE)                      | Packaging Corporation Of America (PKG) | Steel Dynamics (STLD)         |                     |                   |                         |                         |
+| **Real Estate**            | SBA Communications (SBAC)        | Equinix (EQIX)                         | CoStar Group (CSGP)           |                     |                   |                         |                         |
+| **Utilities**              | Edison International (EIX)       | Atmos Energy (ATO)                     | American Water Works (AWK)    |                     |                   |                         |                         |
+
+```{r data for portfolio, message = FALSE, warning=FALSE, results='hide'}
+
+# Create extraction function
+
+get_stock_data = function(stock_name){
+  stock_data <- get.hist.quote(instrument=stock_name, start="2020-01-01",
+                               end="2023-12-31", quote=c("Open","Close"),
+                               provider="yahoo", drop=TRUE)
+  stock_data$y <- stock_data$Close/stock_data$Open
+  
+  return(stock_data)
+}
+
+
+# 1. Communiction Sevices --------------- 
+
+# Meta Platforms (META) - Subindustry : Interactive Media & Services 
+meta <- get_stock_data(stock_name = "META")
+
+# Netflix (NFLX) - Subindustry : Movies & Entertainment
+nflx <- get_stock_data(stock_name = "NFLX")
+
+# Paramount (PARA) - Subindustry : Movies & Entertainment
+para <- get_stock_data(stock_name = "PARA")
+
+# Walt Disney (DIS) - Subindustry : Movies & Entertainment
+dis <- get_stock_data(stock_name = "DIS")
+
+# Warner Bros Discoveries (WBD) - Subindustry: Broadcasting
+wb <- get_stock_data(stock_name = "WBD")
+
+# 2. Consumer Discretionary  --------------------------------------------------
+
+# Ford Motor company (F) - Subindustry: Automobile Manufacturers
+ford <- get_stock_data(stock_name = "F")
+
+# General Motors (GM) - Subindustry: Automobile Manufacturers
+gm <- get_stock_data(stock_name = "GM")
+
+# Tesla (TSLA) - Subindustry: Automobile Manufacturers
+tsla <- get_stock_data(stock_name = "TSLA")
+
+# Amazon (AMZN) - Subindustry : Broadline retail
+amzn <- get_stock_data(stock_name = "AMZN")
+
+# Ebay (EBAY) - Subindustry : Broadline Retail
+ebay <- get_stock_data(stock_name = "EBAY")
+
+# Expedia Group (EXPE) - Subindustry: Hotels, Resorts & Cruise Lines
+expe <- get_stock_data(stock_name = "EXPE")
+
+# Booking Holdings (BKNG) - Subindustry: Hotels, Resorts & Cruise Lines
+bkng <- get_stock_data(stock_name = "BKNG")
+
+# 3. Consumer Staples -----------------------------------------------------
+
+# Philip Morris International (PM) - Subindustry: Tobacco
+pm <- get_stock_data(stock_name = "PM")
+
+# Altria (MO) - Subindustry: Tobacco
+mo <- get_stock_data(stock_name = "MO")
+
+# Colgate - Palmolive (CL) - Subindustry : Household products
+cl <- get_stock_data(stock_name = "CL")
+
+# Kraft Heinz (KHC) - Subindustry : Packaged Foods & Meats
+khc <- get_stock_data(stock_name = "KHC")
+
+# 4. Energy ---------------------------------------------------------------
+
+# Hess Corporation (HES) - Subindustry : Integrated Oil & Gas
+hes <- get_stock_data(stock_name = "HES")
+
+# Coterra Energy Inc (CTRA) - Subindustry : Oil & Gas Exploration & Production
+ctra <- get_stock_data(stock_name = "CTRA")
+
+# ExxonMobil (XOM) - Subindustry : Integrated Oil & Gas
+xom <- get_stock_data(stock_name = "XOM")
+
+
+# 5. Financials -----------------------------------------------------------
+
+# Nasdaq, Inc. (NDAQ) - Subindustry: Financial Exchange & Data
+ndaq <- get_stock_data(stock_name = "NDAQ")
+
+# Assurant (AIZ) - Subindustry : Multi - line insurance
+aiz <- get_stock_data(stock_name = "AIZ")
+
+# Mastecard (MA) - Subindustry : Transaction & Payment Processing Services
+ma <- get_stock_data(stock_name = "MA")
+
+# Paypal (PYPL) - Subindustry : Transaction & Payment Processing Services
+pypl <- get_stock_data(stock_name = "PYPL")
+
+# VISA (V) - Subindustry : Transaction & Payment Processing Services
+v <- get_stock_data(stock_name = "V")
+
+# 6. Health Care -----------------------------------------------------------
+
+# Pfizer (PFE) - Subindustry : Pharmaceuticals
+pfe <- get_stock_data(stock_name = "PFE")
+
+# Johnson & Johnson (JNJ) - Subindustry : Pharmaceuticals
+jnj <- get_stock_data(stock_name = "JNJ")
+
+# Moderna (MRNA) - Subindustry : Biotechnology
+mrna <- get_stock_data(stock_name = "MRNA")
+
+# 7. Industrials ----------------------------------------------------------
+
+# Delta Air Lines (DAL) - Subindustry : Passenger Airlines
+dal <- get_stock_data(stock_name = "DAL")
+
+# Uber (UBER) - Subindustry : Passenger Ground Transportation
+uber <- get_stock_data(stock_name = "UBER")
+
+# Boeing (BA) - Subindustry : Aerospace & Defense
+ba <- get_stock_data(stock_name = "BA")
+
+# FedEx (FDX) - Subindustry : Air Freight & Logistics
+fdx <- get_stock_data(stock_name = "FDX")
+
+# 8. IT ------------------------------------------------------------------
+
+# HP (HPQ) - Subindustry : Technology Hardware, Storage & Peripherals
+hpq <- get_stock_data(stock_name = "HPQ")
+
+# Nvidia (NVDA) - Subindustry : Semiconductors
+nvda <- get_stock_data(stock_name = "NVDA")
+
+# Intel (INTC) - Subindustry : Semiconductors
+intc <- get_stock_data(stock_name = "INTC")
+
+# AMD (AMD) - Subindustry : Semiconductors
+amd <- get_stock_data(stock_name = "AMD")
+
+# 9. Materials -----------------------------------------------------------
+
+# Packaging Corporation Of America (PKG) - Subindustry : Paper & Plastic Packaging Products & Materials
+pkg <- get_stock_data(stock_name = "PKG")
+
+# Steel Dynamics (STLD) - Subindustry: Steel
+stld <- get_stock_data(stock_name = "STLD")
+
+# Nucor (NUE) - Subindustry: Steel
+nue <- get_stock_data(stock_name = "NUE")
+
+
+# 10. Real Estate ---------------------------------------------------------
+
+# SBA Communications (SBAC) - Subindustry : Telecom Tower REITs
+sbac <- get_stock_data(stock_name = "SBAC")
+
+# Equinix (EQIX) - Subindustry : Data Center REITs
+eqix <- get_stock_data(stock_name = "EQIX")
+
+# CoStar Group (CSGP) - Subindustry : Real Estate Services 
+csgp <- get_stock_data(stock_name = "CSGP")
+
+
+# 11. Utilities ----------------------
+
+# Edison International (EIX) - Subindustry : Electric Utilities
+eix <- get_stock_data(stock_name = "EIX")
+
+# Atmos Energy (ATO) - Subindustry : Gas Utilities
+ato <- get_stock_data(stock_name = "ATO")
+
+# American Water Works (AWK) - Subindustry: Water Utilities
+awk <- get_stock_data(stock_name = "AWK")
+```
+
+While for some GICS sectors we have chosen to take stocks from different
+sub-industries, as for the *Utilities* sector where we have used
+electric, gas and water utilities, for others we focused on a specific
+sub-industry, as for example tobacco in the *Consumer Staples* sector.
+In the same fashion used different *Movies & Entertainment* companies,
+as well as *Automobile Manufacturers*, *Broadline Retail* or
+*Pharmaceuticals*, the last two were chosen believing they were particularly relevant in the studied time span.
+
+We also inserted stocks that even being from different industries we
+suspect to be deeply connected one to another and to have been heavily
+influenced by the Covid pandemic, those being Booking and Expedia (travel
+agencies), Delta Airlines (public flight airline) and Boeing (aerospace
+manufacturer). Here we could expect to find correlations given by the
+abrupt stop and subsequent slow restart to tourism the world experienced
+in the examined time period, factor that we may suppose forced a specific similar behavior to the stocks.
+
+To have an idea of how our data looks we can plot for example the closing
+prices of the *Health Care* sector.
+
+```{r plot data, message = FALSE, warning=FALSE, echo=FALSE, fig.align='center'}
+# This transform the tseries into a dataframe
+
+pfizer_df <- fortify(pfe)
+jnj_df <- fortify(jnj)
+moderna_df <- fortify(mrna)
+
+# One plot over another ----------------------------------
+
+p1 <- ggplot(pfizer_df, aes(x = Index, y = Close)) +
+  geom_line(linewidth = 0.5, color = "#B3001B") +
+  labs(title = "Pfizer", x = NULL, y = "Closing Price")+
+  theme_light() + 
+  theme(text = element_text(family = "serif"),
+        panel.background = element_rect(fill = NA),
+        title = element_text(colour = "#01295F"),
+        plot.background = element_rect(fill = "#F9EBE0", colour = "#F9EBE0"), 
+        plot.title = element_text(size=16),
+        axis.line = element_line(color = "#01295F"),
+        axis.text = element_text(color = "#01295F", size = 10),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10, color = "#01295F"),
+        legend.key = element_rect(color = NA, fill = NA),
+        legend.key.size = unit(0.6, "cm"),
+        legend.background = element_rect(fill = NA),
+        panel.border = element_rect(color = "#01295F"))
+
+p2 <- ggplot(jnj_df, aes(x = Index, y = Open))  +
+  geom_line(linewidth = 0.5, color = "#208AAE") +
+  labs(title = "Johnson & Johnson", x = NULL, y = "Closing Price")+
+  theme_light() + 
+  theme(text = element_text(family = "serif"),
+        panel.background = element_rect(fill = NA),
+        title = element_text(colour = "#01295F"),
+        plot.background = element_rect(fill = "#F9EBE0", colour = "#F9EBE0"), 
+        plot.title = element_text(size=16),
+        axis.line = element_line(color = "#01295F"),
+        axis.text = element_text(color = "#01295F", size = 10),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10, color = "#01295F"),
+        legend.key = element_rect(color = NA, fill = NA),
+        legend.key.size = unit(0.6, "cm"),
+        legend.background = element_rect(fill = NA),
+        panel.border = element_rect(color = "#01295F"))
+
+p3 <- ggplot(moderna_df, aes(x = Index, y = Open))  +
+  geom_line(linewidth = 0.5, color = "#E8871E") +
+  labs(title = "Moderna", x = "Date", y = "Closing Price")+
+  theme_light() + 
+  theme(text = element_text(family = "serif"),
+        panel.background = element_rect(fill = NA),
+        title = element_text(colour = "#01295F"),
+        plot.background = element_rect(fill = "#F9EBE0", colour = "#F9EBE0"), 
+        plot.title = element_text(size=16),
+        axis.line = element_line(color = "#01295F"),
+        axis.text = element_text(color = "#01295F", size = 10),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10, color = "#01295F"),
+        legend.key = element_rect(color = NA, fill = NA),
+        legend.key.size = unit(0.6, "cm"),
+        legend.background = element_rect(fill = NA),
+        panel.border = element_rect(color = "#01295F"))
+
+# Arrange plots together
+grid.arrange(p1, p2, p3, nrow = 3)
+
+```
+
+Once the data are obtained, it is necessary to construct the data matrix
+$\mathbb{X} = [x_{t,j}]_{t,j}$ which contains the logarithm of the
+relative closing prices on the columns and on the rows the *time*.
+
+```{r data matrix, message = FALSE, warning=FALSE}
+# DATA MATRIX -------------------------------------------------------------------------
+
+stocks_names <- c( 'AMZN', 'AIZ', 'ATO', 'AWK', 'CL', 'CTRA', 'CSGP',
+                   'EIX', 'EQIX', 'EXPE', 'FORD', 'KHC', 'HES', 'HPQ',
+                   'DAL', 'MA', 'META', 'MRNA', 'NFLX', 'NDAQ', 'NVDA',
+                   'BA', 'PFE', 'PM', 'PKG', 'SBAC', 'STLD', 'UBER',
+                   'WB', 'XOM', "GM", "TSLA", "EBAY", "INTC", "AMD",
+                   "PARA", "DIS", "JNJ", "MO", "NUE", "BKNG", "PYPL",
+                   "V", "FDX")
+
+categories <- list(c("META", "NFLX", "PARA", "DIS", "WB"),
+                  c("FORD", "GM", "TSLA", "AMZN", "EBAY", "EXPE", "BKNG"),
+                  c("PM", "MO", "CL", "KHC"),
+                  c("HES", "CTRA", "XOM"),
+                  c("NDAQ", "AIZ", "MA", "PYPL", "V"),
+                  c("PFE", "JNJ", "MRNA"),
+                  c("DAL", "UBER", "BA", "FDX"),
+                  c("HPQ", "NVDA", "INTC", "AMD"),
+                  c("PKG", "STLD", "NUE"),
+                  c("SBAC", "EQIX", "CSGP"),
+                  c("EIX", "ATO", "AWK"))
+
+stocks_close <- cbind(amzn$Close, aiz$Close, ato$Close, awk$Close,
+                      cl$Close, ctra$Close, csgp$Close, eix$Close,
+                      eqix$Close, expe$Close, ford$Close, khc$Close,
+                      hes$Close, hpq$Close, dal$Close, ma$Close,
+                      meta$Close, mrna$Close, nflx$Close, ndaq$Close,
+                      nvda$Close, ba$Close, pfe$Close,pm$Close, pkg$Close,
+                      sbac$Close, stld$Close, uber$Close, wb$Close,
+                      xom$Close, gm$Close, tsla$Close, ebay$Close,
+                      intc$Close, amd$Close, para$Close, dis$Close,
+                      jnj$Close, mo$Close, nue$Close, bkng$Close,
+                      pypl$Close, v$Close, fdx$Close)
+
+difflog <- function(x) diff(log(x))
+
+stocks_values <- apply(stocks_close, MARGIN = 2, FUN = difflog)
+
+colnames(stocks_values) <- stocks_names
+
+# Parameters ---------------------
+
+m = nrow(stocks_values)
+n = ncol(stocks_values)
+
+# Partition creation ------
+
+partition = rep(NA, length(stocks_names))
+for(i in 1:length(stocks_names)){
+  for(j in 1:length(categories)){
+    if(stocks_names[i] %in% categories[[j]]){
+      partition[i] = j
+      break
+    }
+  }
+}
+```
+
+## Correlation
+
+From the data matrix we want to estimate the Pearson-based
+correlation graph over stocks. <br> We can look at the correlation
+matrix to have an immediate idea of how the stocks are linearly
+correlated one to the other:
+
+```{r plot correlation, message = FALSE, warning=FALSE, echo=FALSE, fig.align='center'}
+# Correlation -------------------------------------------------------
+
+r <- cor(stocks_values) # Evaluate the linear correlation coefficient
+par(bg = "#F9EBE0")
+# Correlation plot between stocks
+corrplot(r,tl.col =  "#01295F", tl.cex = 0.7, family = "serif", method = 'color', order = 'AOE')
+
+```
+
+We need to test whether the correlations we are seeing are
+scientifically significant and not simply the result of
+chance. We can do this with hypothesis tests:
+
+```{=tex}
+\begin{equation*}
+  \left\{\begin{matrix}
+\  H_{0}: \left| \rho \right| \gt  \tau\\ 
+\ H_{1}: \left| \rho \right| \le  \tau \\  
+ 
+\end{matrix}\right.
+\end{equation*}
+```
+
+While the one above is the *classical* hypothesis testing scenario for a
+certain correlation value $\rho$ in our case the correlations are empirical,
+based on the stock data we got. To address the uncertainty for the real value
+of $\rho$ the definition of the test is translated to work for confidence
+intervals of coverage $1 - \alpha$ for the estimates of the correlation
+value between stocks, where $\alpha$ is the probability of the first type
+error (false discovery), the one we usually are more interested to avoid. <br>
+Calling $C_n^\rho(\alpha)$ the confidence interval for the Pearson
+correlation the hypothesis tests become:
+
+```{=tex}
+\begin{equation*}
+  \left\{\begin{matrix}
+\  H_{0}: C_n^\rho(\alpha) \cap [-\tau, \tau] = \emptyset\\ 
+\ H_{1}: C_n^\rho(\alpha) \cap [-\tau, \tau] \neq \emptyset \\  
+ 
+\end{matrix}\right.
+\end{equation*}
+```
+
+We also need to address the problem of multiplicity. In order to
+construct a correlation graph, we must do a hypothesis test for each
+pair of variables. Each of the hypothesis tests ensures some
+$1 - \alpha$ coverage for each edge of the graph but the entire topology
+of the graph in this way does not have a $1 - \alpha$ probability of
+being true. It is therefore necessary to make a correction to the
+$\alpha$ value of the individual hypothesis test in order to be certain
+that the type-1 error rate of the overall topology of the graph is the
+desired one.
+
+The simplest of this kind of the corrections is the *Bonferroni correction*,
+for which to ensure an overall type-1 error rate $\alpha$ over $n$
+evaluations we have to use as alpha for each individual test
+$\alpha_i = \frac \alpha n$.
+
+```{r confidence intervals and Bonferroni correction, message = FALSE, warning=FALSE}
+
+# CI for the correlation coefficient ------- 
+
+tanh.r <- atanh(r) # Perform Fisher Z-transform
+sigma <- 1 / sqrt ( n-3 ) # Asymptotic variance
+
+alpha <- 0.4
+
+ncomb <- (n*(n-1))/2 # == factorial(n)/(factorial(n-2)*2) # Number of combinations of n elements taken 2 at a time
+
+alpha.adj <- alpha / ncomb # Use Bonferroni correction
+z.adj <- qnorm(1 - alpha.adj / 2)
+
+# Confidence intervals without the autocorrelations !
+upper.tanh.r = tanh.r[upper.tri(tanh.r)]
+CI2 <- cbind('Lower Bound' = tanh(c(upper.tanh.r - sigma * z.adj)),
+             'Upper Bound' = tanh(c(upper.tanh.r + sigma * z.adj)) )
+
+# Set the names to the rows of CI to know which couples of stocks we're
+# constructing the CI for 
+indeces <- which(upper.tri(tanh.r), arr.ind = TRUE) 
+indeces <- data.frame(indeces)
+
+rownames(CI2) <- rep(NA, dim(indeces)[1])
+for(i in 1:dim(indeces)[1]){
+  rownames(CI2)[i] <- paste0(stocks_names[c(indeces[i,]$row)], ' ',
+                             stocks_names[c(indeces[i,]$col)])
+}
+
+```
+
+The confidence intervals for the correlations we obtained are very wide,
+we are therefore forced to consider higher values for $\alpha$, such as
+0.4. This value alone seems high, however since it is the $\alpha$ value
+of the whole experiment the real $\alpha$ for each correlation between two
+stocks is:
+
+$\frac{ 0.4 }{44! / (42!* 2!)} = 4.23e^{-4} \text{ since there are }  \binom{44}{2} \text{ couples of variables.}$
+
+Considering also that we usually are interested in only a small subset
+of those correlations we can consider it a reasonable error rate. Finally there
+is an important fact that we want to point out: given that an increase in the
+value of $\alpha$ brings an increase in the size of the confidence intervals
+we can expect for different alphas a similar behaviour, with just the taus for
+which the edges become relevant shifted towards smaller values.
+
+### Choice of the threshold $\tau$
+
+Once we have chosen the error of the first kind for the entire topology of the graph we can reason about the choice of $\tau$. <br>
+We can use a data driven approach or focus on the topology of the graph to choose the threshold $\tau$.
+
+#### Data Driven Approach
+
+```{r data driven approach for tau, message = FALSE, warning=FALSE, results='hide'}
+tau1 <- quantile(r, 0.3)
+tau2 <- quantile(r, 0.5)
+tau3 <- quantile(r, 0.7)
+
+check.threshold <- function(v, tau){
+  return( (v["Lower Bound"] >  tau) | 
+            (v["Upper Bound"] < - tau) )
+}
+
+which.bigger.tau1 <- apply(CI2, MARGIN = 1, FUN = check.threshold, tau = tau1) 
+which.bigger.tau2 <- apply(CI2, MARGIN = 1, FUN = check.threshold, tau = tau2)
+which.bigger.tau3 <- apply(CI2, MARGIN = 1, FUN = check.threshold, tau = tau3) 
+sum(which.bigger.tau1)
+sum(which.bigger.tau2)
+sum(which.bigger.tau3)
+```
+
+```{r plot histogram of correlation, message = FALSE, warning=FALSE, echo=FALSE, fig.align='center'}
+r_vector = as.vector(r)
+r_vector = r_vector[r_vector!=1]
+df <- data.frame(r_vector)
+ggplot(df, aes(x = r_vector)) +
+  geom_histogram(aes(y = ..density..), fill = "#208AAE", color = "#F9EBE0", binwidth = 0.1) +
+  geom_vline(aes(xintercept = tau1, color = "30th Percentile"), size = 1) +
+  geom_vline(aes(xintercept = tau2, color = "50th Percentile"), size = 1) +
+  geom_vline(aes(xintercept = tau3, color = "70th Percentile"), size = 1) +
+  labs(title = "Histogram of correlations", x = NULL, y = "Density") +
+  scale_color_manual(values = c("#01295F", "#9E2B25" ,"#E8871E"),
+                     labels = c("30th Percentile", "50th Percentile", "70th Percentile"),
+                     name = "Quantiles - Possible threshold") +
+  theme_light()  +
+  theme(
+    text = element_text(family = "serif", color = "#01295F"),
+    panel.background = element_rect(fill = "#F9EBE0"),
+    plot.title = element_text(size = 16, color = "#01295F"),
+    axis.line = element_line(color = "#01295F"),
+    axis.text = element_text(size = 10, color = "#01295F"),
+    legend.text = element_text(size = 10, color = "#01295F"),
+    panel.border = element_rect(color = "#01295F"),
+    plot.background = element_rect(fill = "#F9EBE0", color = "#F9EBE0"), 
+    legend.background = element_rect(fill = "#F9EBE0"),
+    legend.key = element_rect(fill = "transparent"),
+  )
+```
+
+Looking at the correlation histogram, we can choose $\tau$ based on the quantiles. We decided to take the thirtieth, fiftieth and seventieth percentiles that correspond to $\tau$ values of respectively 0.289, 0.364 and 0.444. <br>
+We then saw how many confidence intervals fall outside the range given by $[-\tau ,\tau]$ and with $\tau$ equal to 0.289 there are 11 confidence intervals left, with $\tau$ equal to 0.364 there are 8 and only 5 intervals with the last $\tau$ considered.
+
+#### Graph Topology Approach
+
+The second proposed approach is based on judging the graph topology ourselves
+and eyeballing a good trade-off between edges quantity and significance of
+the results. This approach is less rigorous but permit us to find better
+compromises.
+
+```{r high tau, message = FALSE, warning=FALSE, echo=FALSE, fig.align='center', fig.width=12}
+adj.M <- function(tau){
+  adj_matrix = matrix(rep(0, n*n), nrow = n)
+  which.bigger.tau <- apply(CI2, MARGIN = 1, FUN = check.threshold, tau = tau)
+  
+  true.idx <- indeces[which.bigger.tau, ]
+  for(i in 1:dim(true.idx)[1]){
+    adj_matrix[true.idx[i,]$row, true.idx[i,]$col] = 1
+    adj_matrix[true.idx[i,]$col, true.idx[i,]$row] = 1 # simmetrizza
+  }
+  colnames(adj_matrix) <- stocks_names
+  rownames(adj_matrix) <- stocks_names
+  return(adj_matrix)
+}
+
+# Function to create graph from a certain tau value
+build_graph = function(tau){
+  adj_matrix = adj.M(tau)
+  graph = graph_from_adjacency_matrix(adj_matrix, mode = "undirected")
+  return(graph)
+}
+
+partition_colors <- c("#F8766D", "#E8871E", "#00BF7D", "#00B0F6", "#E76BF3", "#FF61C1", "#FFB07C", "#FFD700", "#7C8E00", "#01295F","#B3001B")
+
+
+node_colors <- partition_colors[partition]
+
+# Function to plot graph
+plot_graph_ggnet2 = function(graph, tau_value) {
+  ggnet2(graph, 
+         mode = "kamadakawai",
+         color = node_colors,
+         node.size = 12,
+         edge.color = "#01295F",
+         label = T,
+         label.size = 3,
+         label.color = "#F9EBE0",
+         edge.size = 1) +
+    theme(text = element_text(family = "serif", color = "#01295F"),
+          plot.background = element_rect(fill = "#F9EBE0", color = "#F9EBE0"),
+          panel.background = element_rect(fill = "#F9EBE0")) +
+    ggtitle(paste("Graph topology with tau equal to", tau_value), 
+            subtitle = NULL)
+}
+
+# Set seed to get edges without intersections
+set.seed(1)
+graph1 = build_graph(0.65)
+g1 <- plot_graph_ggnet2(graph1, tau_value = 0.65)
+
+# Set seed to get edges without intersections
+set.seed(2)
+graph2 = build_graph(0.5)
+g2 <- plot_graph_ggnet2(graph2, tau_value = 0.5)
+
+grid.arrange(g1, g2, ncol = 2)
+```
+
+Using a high $\tau$ we end up with only few but meaningful connections.
+With $\tau = 0.5$ the only edges present are between Mastercard and Visa
+(payment services), Steel Dynamics and Nucor (steel manufacturing), Ford
+and General Motors (automotive manufacturing) and between Exxon Mobil
+Corp and Hess Corp (oil).
+
+All those edges are somewhat to be expected
+given the similarity between the companies and probably the most
+interesting part of this result is the lack of certain edges between
+stocks that we would have expected to be related, but to delve deeper
+into this aspect we first want to explore how edges evolve lowering
+$\tau$.
+
+It's also interesting to note that the first two mentioned edges are
+particularly strong, they continue to exist even if we increase our
+demands by setting $\tau = 0.65$ (the first one continues to exist even for $\tau = 0.75$!). This is a symptom of both a very high correlation a high certainty of its value, represented by small confidence interval.
+
+```{r chosen tau, message = FALSE, warning=FALSE, echo=FALSE, fig.align='center'}
+# Set seed to get edges without intersections
+set.seed(3)
+graph3 = build_graph(0.25)
+g3 <- plot_graph_ggnet2(graph3,tau_value = 0.25)
+g3
+```
+
+Lowering $\tau$ to $0.25$ we find new links between similar companies but
+also more complex relationships between other stocks. For example we now
+find edges from the tourism related stocks we mentioned above (Expedia,
+Booking, Delta Airlines and Boeing) and also between the three utilities companies.
+
+The new "simple" links we found are between Warner Bros and Paramount (Entertainment), Nvidia and Advanced Micro Devices (Semiconductors) and SBA Communications and Equinix (Internet and telecommunications).
+
+However even with such low taus values we miss to find many links we
+could have thought as obvious, as those between tobacco companies,
+entertainment, or even online retail.
+
+Another interesting result is that the whole correlation finding setup
+seems to have *only found positive correlations*. While in this exercise
+we had the generic goal to find correlation between stocks, in real
+scenarios, following the *Modern Portfolio Theory*, we'd want to find
+negative correlations as to diversify our investing in order to reduce
+the risk of the whole investment.
+
+To get more meaningful results in this
+regard we should expand the range of explored stocks arbitrarily or
+following some intel about this kind of behaviour, however we decided to
+not delve into this aspect as to not increase too much the number of
+considered stocks since it also increases the size of the confidence
+intervals by lowering the $\alpha_i$ but also to not inadvertently fall
+into *data snooping* by studying stocks and not include them in the final
+results.
+
+## Shapley Values
+
+Now that we set the parameters $\alpha$ and $\tau$ and we obtained the
+correlation graph for these chosen parameters, we need to compute some
+*bootstrapped* confidence intervals for the Shapley Values of the $p = 44$
+stocks we chose for our portfolio. For this particoular scenario, the
+one of a *variance game*, we can calculate the Shapley value for the
+*j*-th stock (seen here as the player *j* of the game) as
+
+$$
+\psi(j)^G=\mathbb{E}\left(X_j\right)-\omega \cdot \operatorname{Cov}\left(X_j, R_{\mathcal{P}}\right)=\mathbb{E}\left(X_j\right)-\omega \cdot \sum_{r=1}^p \mathbb{C o v}\left(X_j, X_r\right)
+$$
+
+We can observe that the definition depends on the parameter $\omega$, which measures how much the volatility of the stock affects the Shapley value itself. This becomes clearer if we observe that for this "game" the characteristic function is given by $\nu(\mathsf{C}) = U_\omega(R_\mathsf{C})$ and the utility function of a player for us is $U_\omega(X)=\mathbb{E}(X)-\omega \cdot \operatorname{Var}(X)$, where $\operatorname{Var(X)}$ expresses indeed the volatility of the stock. This makes the choice of the parameter extremely personal and based on the individual propensity for risk, so we choose to investigate the Shapley values behaviour for two different values of $\omega$; further analysis is made below.
+
+Talking about the bootstrapped confidence intervals, we opted for the pivotal ones, computed at a level $1-\alpha = 0.95$ (so setting $\alpha$ at $0.05$). The CIs are based on the plug-in estimator of the Shapley calculated starting from their definition on the whole dataset/portfolio. To do so, we implemented one function that evaluates the estimate of the Shapley values on the whole dataset, and another one that allows us to select the "indeces" (the dates, in this case), in order to perform the bootstrap simulation to get the quantiles of the Shapley values distribution needed for the pivotal confidence intervals. Besides, we wrote two more functions that perform, respectively, the bootstrap simulation and the computation of the confidence intervals.
+
+```{r shapley fun, message = FALSE, warning=FALSE}
+covdf <- data.frame(cov(stocks_values)) 
+
+# Function to compute the shapley values on the whole dataset
+shap <- function(name, w=weigth, x = stocks_values, cov.df = covdf ){
+  av <- mean(x[, name]) 
+  tot.cov <- sum(cov.df[name])
+  shap.value <- av - w*tot.cov
+  return(shap.value)
+}
+
+# Function to bootstrap the shapley
+shap4boot <- function(idx.vec, w=weigth){
+  smpl.vec <- stocks_values[idx.vec, ]
+  smpl.covdf <- data.frame(cov(stocks_values[idx.vec, ]))
+  av <- apply(smpl.vec, MARGIN = 2, mean) 
+  tot.cov <- apply(smpl.covdf, MARGIN = 2, sum)
+  shap.value <- av - w*tot.cov
+  
+  return(shap.value)
+}
+
+# Bootstrap function to get the quantiles
+boot.sim <- function(w, alpha=0.05, B=10000, n = dim(stocks_values)[2],  m = dim(stocks_values)[1]){
+  
+  shap.mx <- matrix(NA, nrow=B, ncol= n)
+  for(rep in 1:B){
+    smpl.idx <- sample(c(1:m), m, replace = T )
+    shap.mx[rep, ] <- shap4boot(smpl.idx, w) 
+  }
+  shap.q1 <- apply(shap.mx, MARGIN = 2, FUN = quantile, probs = (1 - alpha/2))
+  shap.q2 <-  apply(shap.mx, MARGIN = 2, FUN = quantile, probs = alpha/2)
+  quantiles <- cbind( shap.q1, shap.q2 )
+  rownames(quantiles) <- stocks_names
+  return(quantiles)
+}
+
+# Function to get the pivotal CIs
+piv.CI <- function(par.est, boot.quant){
+  CI <-c(2*par.est - boot.quant)
+  names(CI) <- c('lower', 'upper')
+  return(CI)
+}
+
+
+```
+
+To investigate how the Shapley values vary when changing $\omega$, as mentioned above, we chose to compute the CIs for these quantities both with a "small" ($\omega = 0.1$) and a "large" ($\omega = 10$) weight. Given that none of us has reasonably strong previous knowledge in the economic field and the only constraint we have on this parameter is that it has to be strictly positive, we don't know if our setting is realistic or not and we can't therefore consider the analysis to be made in a totally reasonable or real scenario.
+
+```{r shapley est, message = FALSE, warning=FALSE}
+set.seed(123)
+# Low weight  -----------------------------------------------------------
+weight.low = 0.1
+
+# Matrix of bootstrapped quantiles of the Shapley values' distribution
+quant.boot.Shapley.low <- boot.sim(weight.low)
+# Vector of the plug-in estimate of the Shapley values (on the whole dataset)
+shap.vec.low <- apply(data.frame(stocks_names), MARGIN =1, FUN = shap, w = weight.low) 
+names(shap.vec.low) <- stocks_names
+
+# CIs' construction
+CI.shap.low <- c()
+for(i in 1:n){ # n is the number of stocks
+  CI <- piv.CI(shap.vec.low[i], quant.boot.Shapley.low[i,])
+  CI.shap.low <- rbind(CI.shap.low, CI)
+}
+
+rownames(CI.shap.low) <- stocks_names 
+
+# High weight  -------------------------------------------------------------
+
+weight.high = 10
+
+# Matrix of bootstrapped quantiles of the Shapley values' distribution
+quant.boot.Shapley.high <- boot.sim(weight.high)
+
+# Vector of the plug-in estimate of the Shapley values (on the whole dataset)
+shap.vec.high <- apply(data.frame(stocks_names), MARGIN =1, FUN = shap, w = weight.high) 
+names(shap.vec.high) <- stocks_names
+
+# CIs' construction
+CI.shap.high <- c()
+for(i in 1:n){ # n is the number of stocks
+  CI <- piv.CI(shap.vec.high[i], quant.boot.Shapley.high[i,])
+  CI.shap.high <- rbind(CI.shap.high, CI)
+}
+
+rownames(CI.shap.high) <- stocks_names 
+
+```
+
+To interpret the estimates we got, let us first recall that, as in any other type of game, the Shapley value of a player reflects its marginal contribution to the value of the grand coalition, that in this case is the total utility of the portfolio. A question that naturally arises from this intuitive interpretation is how to correctly interpret *negative* Shapley values. Getting back to the exercise's setting, a possible answer to our question is given in ["Variance Allocation and Shapley Value"](https://arxiv.org/pdf/1606.09424.pdf): "*if a random variable contributes to hedge a risk, then it is “rewarded” with a negative Shapley value*". 
+
+```{r shap low w, message = FALSE, warning=FALSE, echo=FALSE, fig.align='center', fig.height=8}
+
+dat <- data.frame(
+  y = c(1:n),
+  x = shap.vec.low,
+  ci_low = CI.shap.low[,'lower'], 
+  ci_high = CI.shap.low[,'upper']
+)
+
+
+p111 <- ggplot(dat, aes_string(x = "x", y = "y")) +
+  geom_point(color = "#01295F") +
+  geom_errorbarh(aes(xmin = ci_low, xmax = ci_high), height = 0.2, colour = "#01295F") +
+  #geom_text(aes(x = - .25 , label = stocks_names)) +
+  labs(x = "", y = "") + 
+  ggtitle(expression("Confidence intervals for the Shapley values, " * {omega == 0.1})) +  
+  theme_light() + 
+  theme(text = element_text(family = "serif"),
+        panel.background = element_rect(fill = NA),
+        title = element_text(colour = "#01295F"),
+        plot.background = element_rect(fill = "#F9EBE0", colour = "#F9EBE0"), 
+        plot.title = element_text(size=16),
+        #axis.line = element_line(color = "#01295F"),
+        axis.text = element_text(color = "#01295F", size = 10),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10, color = "#01295F"),
+        legend.key = element_rect(color = NA, fill = NA),
+        legend.key.size = unit(0.6, "cm"),
+        legend.background = element_rect(fill = NA),
+        #panel.border = element_rect(color = "#01295F"),
+        axis.text.y = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(), 
+        #plot.margin = margin(0.01, .5, 0.001, 0.5, "cm")  
+  )
+
+p111 + geom_text(aes(x = max(dat$x) - 0.01, label = stocks_names), vjust = 0.5, hjust = 0, colour = "#01295F")
+
+```
+
+For the "low weight" ($\omega = 0.1$), we can see that almost all the confidence intervals for the Shapley values contain $0$, suggesting that most of the selected stocks may not have a relevant contribution to the total utility (recall that the Shapley values satisfy the "dummy player" property, so one possible cause of having a null Shapley value is indeed the one of being a "dummy player", even though this is not necessary). However, the confidence intervals of the other stocks (PYPL, PARA, DIS, WB) have both the bounds below $0$, but not very significantly. These results makes us think that, in this scenario, none of the stocks we selected is dominant in terms of contribution to the total utility, but that the role they play in the "game" is more or less equivalent.
+
+```{r shap high w, message = FALSE, warning=FALSE, echo=FALSE, fig.align='center', fig.height=8}
+
+dat <- data.frame(
+  y = c(1:n),
+  x = shap.vec.high,
+  ci_low = CI.shap.high[,'lower'], 
+  ci_high = CI.shap.high[,'upper']
+)
+
+
+p100  <- ggplot(dat, aes_string(x = "x", y = "y")) +
+  geom_point(colour = "#01295F") +
+  geom_errorbarh(aes(xmin = ci_low, xmax = ci_high), height = 0.2, colour = "#01295F") +
+  labs(x = "", y = "") + 
+  ggtitle(expression("Confidence intervals for the Shapley values, " * {omega == 10})) +  
+  theme_light() + 
+  theme(text = element_text(family = "serif"),
+        panel.background = element_rect(fill = NA),
+        title = element_text(colour = "#01295F"),
+        plot.background = element_rect(fill = "#F9EBE0", colour = "#F9EBE0"), 
+        plot.title = element_text(size=16),
+        #axis.line = element_line(color = "#01295F"),
+        axis.text = element_text(color = "#01295F", size = 10),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10, color = "#01295F"),
+        legend.key = element_rect(color = NA, fill = NA),
+        legend.key.size = unit(0.6, "cm"),
+        legend.background = element_rect(fill = NA),
+        #panel.border = element_rect(color = "#01295F"),
+        axis.text.y = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(), 
+        #plot.margin = margin(0.01, .5, 0.001, 0.5, "cm")  
+  )
+
+p100 + geom_text(aes(x = max(dat$x) - 0.22, label = stocks_names), vjust = 0.5, hjust = 0, colour = "#01295F")
+
+```
+
+For the second choice of $\omega$, that is $\omega = 10$,  we have that all the confidence intervals have both the bounds below $0$, meaning that all the Shapley values for this parameter setting are expected to be negative (at a $0.95$ level). This doesn't necessarily mean that all the stocks contribute to hedge a risk, since the implication we reported above is the opposite one ($\text{stock contribute to hedge a risk} \implies \text{negative Shapley value}$, but viceversa is not necessarily true), still it could be an explanation for this observed behaviour, and not necassarily for all the stocks. However, increasing $\omega$ led to having more diverse estimates for the Shapley values (and the relative CIs), leading us to think that this time each stock stocks may have a different role in terms of contribution to the total utility, and that this quantity isn't distributed as much equally between the players as before.
